@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import filedialog, ttk
 from PIL import Image, ImageTk, ImageFile
+from image_handler import resize_image, generate_random_cat
 
 root = tk.Tk()
 root.title("Cat Breed Classifier")
@@ -30,12 +31,10 @@ guess.set(options[0])
 result = tk.Label(root, textvariable=answer, font=("Helvetica", 14, "bold"))
 result.grid(row=2, column=0, columnspan=5, pady=10)
 
-def resize_image(image: ImageFile, new_size):
-    return image.resize(size=new_size)
 
-def load_image(file_path):
+def load_image():
     try:
-        image_content = Image.open(file_path)
+        image_content = Image.open(generate_random_cat())
         image_content = resize_image(image_content, (400, 400))
         global tk_image
         tk_image = ImageTk.PhotoImage(image_content)
@@ -44,20 +43,18 @@ def load_image(file_path):
         print("error handling file ", e)
 
 default_image = "cat.jpg"
-load_image(default_image)
 
-def upload_image():
-    file_path = filedialog.askopenfilename()
-    load_image(file_path if file_path else default_image)
 
 def submit():
     answer.set(f"You chose: {guess.get()}")
 
 # Buttons
-ttk.Button(root, text="📁 Upload Image", command=upload_image).grid(row=3, column=2, pady=5)
+ttk.Button(root, text="generate a cat image", command=load_image).grid(row=3, column=2, pady=5)
 ttk.Button(root, text="✔ Submit Guess", command=submit).grid(row=4, column=2, pady=5)
 
 for i in range(5):
     root.grid_columnconfigure(i, weight=1)
+
+root.after(500, load_image)
 
 root.mainloop()
