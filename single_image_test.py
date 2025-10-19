@@ -60,7 +60,7 @@ def predict_single_image(model, image_path, class_names, device, image_size=224)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("using device: ", device)
-image_path = "user_images/siamese/test_siamese.jpg"
+image_path = "test_siamese.jpg"
 model_path = "checkpoints/best_checkpoint.pth"
 cat_model = Model(512, 3).to(device)
 
