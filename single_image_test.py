@@ -3,6 +3,8 @@ from PIL import Image
 import torchvision.transforms as transforms
 import os
 
+from sympy.stats.rv import probability
+
 from model import Model
 
 
@@ -41,10 +43,18 @@ def predict_single_image(model, image_path, class_names, device, image_size=224)
     model.eval()
     with torch.no_grad():
         outputs = model(image_tensor)
+        probabilities = torch.nn.functional.softmax(outputs, dim=1)
+        predicted_class_idx = torch.argmax(probabilities, dim=1).item()
+        confidence = probabilities[0, predicted_class_idx].item()
         predicted_class_idx = torch.argmax(outputs, dim=1).item()
 
     predicted_class = class_names[predicted_class_idx]
     print(f"Predicted class: {predicted_class}")
+    print(f"Model confidence: {confidence * 100:.2f}%")
+
+    print("\nClass probabilities:")
+    for name, p in zip(class_names, probabilities[0]):
+        print(f"  {name:<15}: {p.item() * 100:.2f}%")
 
     return predicted_class
 
