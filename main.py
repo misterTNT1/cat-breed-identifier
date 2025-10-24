@@ -1,6 +1,15 @@
 import tkinter as tk
 from tkinter import filedialog, ttk
 from PIL import Image, ImageTk, ImageFile
+import torch
+import model_handler
+from model import Model
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+cat_model = model_handler.load_model(device)
+
+cat_model.eval()
 
 root = tk.Tk()
 root.title("Cat Breed Classifier")
@@ -18,7 +27,7 @@ label = tk.Label(image_frame, bg="#f0f0f0")
 label.pack(padx=10, pady=10)
 
 # Options
-options = ["himalayan cat", "domestic shorthair cat", "siberian cat", "American bobtail"]
+options = ["himalayan cat", "egyptian cat", "persian", "siamese"]
 radio_frame = tk.LabelFrame(root, text="Choose a Breed", padx=10, pady=10)
 radio_frame.grid(row=1, column=0, columnspan=5, pady=10)
 
@@ -43,15 +52,19 @@ def load_image(file_path):
     except Exception as e:
         print("error handling file ", e)
 
-default_image = "cat.jpg"
+default_image = "test_siamese.jpg"
 load_image(default_image)
+current_image_path = default_image
 
 def upload_image():
     file_path = filedialog.askopenfilename()
+    global current_image_path
+    current_image_path = file_path
     load_image(file_path if file_path else default_image)
 
 def submit():
-    answer.set(f"You chose: {guess.get()}")
+    estimated_breed = model_handler.predict_cat_breed(cat_model, current_image_path, device)
+    answer.set(f"You chose: {guess.get()}, model's guess: {estimated_breed}")
 
 # Buttons
 ttk.Button(root, text="📁 Upload Image", command=upload_image).grid(row=3, column=2, pady=5)
