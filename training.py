@@ -84,18 +84,23 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, pa
 
 
 criterion = torch.nn.CrossEntropyLoss()
+
+y_loss = {'train': [], 'val': []}
+y_err = {'train': [], 'val': []}
+
+x_epoch = []
+
 cat_model.train()
 def train(model, n_epochs, criterion, optimizer, train_data_loader, valid_data_loader,
           device, model_save_path, logging_interval: int = 50):
-    train_losses = []
-    validation_losses = []
-    validation_accuracies = []
     best_f1_score = 0
     not_improved_epochs = 0
     os.makedirs(model_save_path, exist_ok=True)
     for epoch in range(n_epochs):
         model.train()
         total_train_loss = 0
+        total = 0
+        correct_predictions = 0
         for batch_index, (batch_data, batch_labels) in enumerate(train_data_loader):
             inputs = batch_data.to(device)
             y_true = batch_labels.to(device)
@@ -107,18 +112,25 @@ def train(model, n_epochs, criterion, optimizer, train_data_loader, valid_data_l
             loss.backward()
             optimizer.step()
 
-            total_train_loss += loss.item()
+            total_train_loss += loss.item() * inputs.size(0)
+            _, predicted = torch.max(y_pred, 1)
+            total += y_true.size(0)
+            correct_predictions += (predicted == y_true).sum().item()
 
             if (batch_index + 1) % logging_interval == 0:
                 print(f'Epoch {epoch + 1}\t| Batch: {batch_index + 1}\t| Loss: {loss.item()}')
 
-        average_train_loss = total_train_loss / len(train_data_loader)
-        train_losses.append(average_train_loss)
+        epoch_loss = total_train_loss / total
+        epoch_err = 1 - correct_predictions  / total
+        y_loss['train'].append(epoch_loss)
+        y_err['train'].append(epoch_err)
         # validation
         model.eval()
+        val_loss = 0
+        val_correct = 0
+        val_total = 0
         y_true = []
         y_pred = []
-        average_validation_loss = 0
         for valid_data, valid_labels in valid_data_loader:
             valid_data = valid_data.to(device)
             valid_labels = valid_labels.to(device)
@@ -127,13 +139,19 @@ def train(model, n_epochs, criterion, optimizer, train_data_loader, valid_data_l
             valid_pred_labels = torch.argmax(valid_preds, dim=1)
             y_true.extend(valid_labels.detach().cpu().numpy())
             y_pred.extend(valid_pred_labels.detach().cpu().numpy())
-            average_validation_loss += criterion(valid_preds, valid_labels).item()
+            validation_loss = criterion(valid_preds, valid_labels)
+            val_loss += validation_loss.item() * valid_data.size(0)
+            _, predicted = torch.max(valid_preds, 1)
+            val_total += valid_labels.size(0)
+            val_correct += (predicted == valid_labels).sum().item()
+        val_epoch_loss = val_loss / val_total
+        val_epoch_err = 1 - val_correct / val_total
+        y_loss['val'].append(val_epoch_loss)
+        y_err['val'].append(val_epoch_err)
 
-        average_validation_loss /= len(validation_data_loader)
-        validation_losses.append(average_train_loss)
+        x_epoch.append(epoch + 1)
 
         validation_accuracy = accuracy_score(y_true, y_pred)
-        validation_accuracies.append(validation_accuracy)
         valid_f1_score = f1_score(y_true, y_pred, average='macro')
 
         scheduler.step(valid_f1_score)
@@ -163,18 +181,19 @@ def train(model, n_epochs, criterion, optimizer, train_data_loader, valid_data_l
     # plotting the graphs
     plt.figure(figsize=(10, 4))
     plt.subplot(1, 2, 1)
-    plt.plot(train_losses, label='Train Loss')
-    plt.plot(validation_losses, label='Validation Loss')
+    plt.plot(x_epoch, y_loss['train'], label='Train Loss')
+    plt.plot(x_epoch, y_loss['val'], label='Validation Loss')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
-    plt.title('Loss Over Time')
+    plt.title('Loss vs Epoch')
     plt.legend()
 
     plt.subplot(1, 2, 2)
-    plt.plot(validation_accuracies, label='Validation Accuracy', color='green')
+    plt.plot(x_epoch, y_err['train'], label="Train Error")
+    plt.plot(x_epoch, y_err['val'], label="Val Error")
     plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
-    plt.title('Validation Accuracy Over Time')
+    plt.ylabel('Error Rate')
+    plt.title('Error vs Epoch')
     plt.legend()
 
     plt.tight_layout()
