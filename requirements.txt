@@ -1,0 +1,5 @@
+torch~=2.5.1+cu121
+pillow~=11.0.0
+torchvision~=0.20.1+cu121
+matplotlib~=3.10.6
+scikit-learn~=1.7.2
