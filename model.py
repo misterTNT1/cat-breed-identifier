@@ -32,7 +32,7 @@ class Model(torch.nn.Module):
             torch.nn.AdaptiveAvgPool2d((1, 1))
         )
 
-        # classifier
+        # classifier layers
         self.classifier = torch.nn.Sequential(
             torch.nn.Linear(512, hidden_dimension),
             torch.nn.ReLU(),

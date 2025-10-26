@@ -85,6 +85,7 @@ model.fc.to(device)
 # Training
 MODEL_SAVE_PATH = 'resnet_checkpoints'
 
+# parameters
 LEARNING_RATE = 1e-3
 N_EPOCHS = 20
 

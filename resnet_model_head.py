@@ -1,5 +1,6 @@
 import torch
 
+#used for the resnet model
 class ModelHead(torch.nn.Module):
     def __init__(self, input_dimension, hidden_dimension, num_classes):
         super(ModelHead, self).__init__()

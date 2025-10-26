@@ -30,7 +30,7 @@ transform = transforms.Compose([
 ])
 
 # Load test dataset (automatically reads from subfolders)
-test_dir = "training/test"  # adjust if needed
+test_dir = "training/test"
 test_dataset = torchvision.datasets.ImageFolder(
     test_dir,
     transform=transform,

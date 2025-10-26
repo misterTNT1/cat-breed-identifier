@@ -1,9 +1,8 @@
-import torch
-from PIL import Image
-import torchvision.transforms as transforms
 import os
 
-from sympy.stats.rv import probability
+import torch
+import torchvision.transforms as transforms
+from PIL import Image
 
 from model import Model
 

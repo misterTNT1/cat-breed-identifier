@@ -5,6 +5,7 @@ from sklearn.metrics import classification_report, f1_score, accuracy_score
 import os
 import matplotlib.pyplot as plt
 
+# parameters
 BATCH_SIZE = 32
 NUM_EPOCHS = 10
 LEARNING_RATE = 1e-3
