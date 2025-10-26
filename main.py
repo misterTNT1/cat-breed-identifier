@@ -62,6 +62,7 @@ def upload_image():
     current_image_path = file_path
     load_image(file_path if file_path else default_image)
 
+# prints the model's guess as well as your guess
 def submit():
     estimated_breed = model_handler.predict_cat_breed(cat_model, current_image_path, device)
     answer.set(f"You chose: {guess.get()}, model's guess: {estimated_breed}")
