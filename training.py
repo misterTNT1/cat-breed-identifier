@@ -7,17 +7,17 @@ import matplotlib.pyplot as plt
 
 # parameters
 BATCH_SIZE = 32
-NUM_EPOCHS = 10
-LEARNING_RATE = 1e-3
+NUM_EPOCHS = 50
+LEARNING_RATE = 3e-5
 NEW_DIMENSION = 224
-EARLY_STOP_INTERVAL = 5 # number of epochs in a row that are not improved for early stopping
+EARLY_STOP_INTERVAL = 10 # number of epochs in a row that are not improved for early stopping
 MODEL_SAVE_PATH = "checkpoints"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"using device {device}")
 
 rotation_transform = torchvision.transforms.RandomApply([
-    torchvision.transforms.RandomRotation(20),
-], p=0.2)  # has a 20% chance to rotate the image between -20 and 20 degrees
+    torchvision.transforms.RandomRotation(30),
+], p=0.2)  # has a 20% chance to rotate the image between -30 and 30 degrees
 
 transform_train = torchvision.transforms.Compose([
     torchvision.transforms.Resize(256),  # resize the input
@@ -26,7 +26,7 @@ transform_train = torchvision.transforms.Compose([
     rotation_transform,  # randomly rotate the input (20% chance)
     torchvision.transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3),
     torchvision.transforms.RandomHorizontalFlip(p=0.5),
-    torchvision.transforms.RandomGrayscale(p=0.1),
+    torchvision.transforms.RandomGrayscale(p=0.2),
     torchvision.transforms.ToTensor(),
     torchvision.transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
 ])
@@ -38,9 +38,9 @@ transform_valid = torchvision.transforms.Compose([
     torchvision.transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
 ])
 
-train_dir = "training/train"
-test_dir = "training/test"
-validation_dir = "training/validation"
+train_dir = "training_new/train"
+test_dir = "training_new/test"
+validation_dir = "training_new/validation"
 
 train_data = torchvision.datasets.ImageFolder(train_dir,
                                               transform=transform_train,
@@ -66,10 +66,10 @@ test_data_loader = torch.utils.data.DataLoader(test_data,
 
 validation_data_loader = torch.utils.data.DataLoader(validation_data,
                                                      batch_size=BATCH_SIZE,
-                                                     shuffle=True,
+                                                     shuffle=False,
                                                      num_workers=0)
 
-cat_model = Model(hidden_dimension=512, num_classes=3).to(device)
+cat_model = Model(hidden_dimension=512, num_classes=5).to(device)
 
 # Load previous weights
 checkpoint_path = os.path.join(MODEL_SAVE_PATH, "full_checkpoint.pth")
@@ -80,11 +80,18 @@ cat_model.load_state_dict(checkpoint['model_state_dict'])
 optimizer = torch.optim.Adam(cat_model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)  # same optimizer as before
 optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 # Load other info
-best_f1_score = checkpoint['best_f1_score']
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=3)
 
+scaler = torch.amp.GradScaler()
 
-criterion = torch.nn.CrossEntropyLoss()
+
+class_counts = [1733, 910, 2812, 1868, 2021]
+class_weights = 1. / torch.tensor(class_counts, dtype=torch.float)
+sample_weights = [class_weights[label] for _, label in train_data.samples]
+sampler = torch.utils.data.WeightedRandomSampler(weights=sample_weights, num_samples=len(sample_weights), replacement=True)
+weights = torch.tensor([sum(class_counts)/(len(class_counts)*c) for c in class_counts], dtype=torch.float).to(device)
+
+criterion = torch.nn.CrossEntropyLoss(weight=weights)
 
 y_loss = {'train': [], 'val': []}
 y_err = {'train': [], 'val': []}
@@ -94,7 +101,7 @@ x_epoch = []
 cat_model.train()
 def train(model, n_epochs, criterion, optimizer, train_data_loader, valid_data_loader,
           device, model_save_path, logging_interval: int = 50):
-    best_f1_score = 0
+    best_f1_score = model['best_f1_score']
     not_improved_epochs = 0
     os.makedirs(model_save_path, exist_ok=True)
     for epoch in range(n_epochs):
@@ -107,11 +114,12 @@ def train(model, n_epochs, criterion, optimizer, train_data_loader, valid_data_l
             y_true = batch_labels.to(device)
 
             optimizer.zero_grad()
-
-            y_pred = model(inputs)
-            loss = criterion(y_pred, y_true)
-            loss.backward()
-            optimizer.step()
+            with torch.amp.autocast(device_type=str(device)):
+                y_pred = model(inputs)
+                loss = criterion(y_pred, y_true)
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
 
             total_train_loss += loss.item() * inputs.size(0)
             _, predicted = torch.max(y_pred, 1)
@@ -155,7 +163,7 @@ def train(model, n_epochs, criterion, optimizer, train_data_loader, valid_data_l
         validation_accuracy = accuracy_score(y_true, y_pred)
         valid_f1_score = f1_score(y_true, y_pred, average='macro')
 
-        scheduler.step(valid_f1_score)
+        scheduler.step(val_epoch_loss)
 
         if valid_f1_score > best_f1_score:
             best_f1_score = valid_f1_score
@@ -175,9 +183,6 @@ def train(model, n_epochs, criterion, optimizer, train_data_loader, valid_data_l
             'best_f1_score': best_f1_score,
             'epoch': epoch
         }, os.path.join(model_save_path, "full_checkpoint.pth"))
-
-        torch.save(model.state_dict(),
-                   os.path.join(model_save_path, f'epoch_{epoch + 1}_checkpoint.pth'))
 
     # plotting the graphs
     plt.figure(figsize=(10, 4))
