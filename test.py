@@ -12,7 +12,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Load your model
-model = Model(512, 3).to(device)
+model = Model(512, 5).to(device)
 
 # Load saved weights
 checkpoint_path = os.path.join("checkpoints", "best_checkpoint.pth")
@@ -30,7 +30,7 @@ transform = transforms.Compose([
 ])
 
 # Load test dataset (automatically reads from subfolders)
-test_dir = "training/test"
+test_dir = "training_new/test"
 test_dataset = torchvision.datasets.ImageFolder(
     test_dir,
     transform=transform,
