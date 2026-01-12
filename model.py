@@ -1,6 +1,5 @@
 import torch
 
-
 class Model(torch.nn.Module):
     def __init__(self, hidden_dimension=512, num_classes=3):
         super(Model, self).__init__()
@@ -49,19 +48,11 @@ class Model(torch.nn.Module):
             torch.nn.Conv2d(512, 512, 3, padding=1),
             torch.nn.BatchNorm2d(512),
             torch.nn.ReLU(),
-            torch.nn.AdaptiveAvgPool2d((1, 1)) # 28x28 -> 1x1
+            torch.nn.AdaptiveAvgPool2d((2, 2)) # 28x28 -> 2x2
         )
 
         # classifier layers
-        self.classifier = torch.nn.Sequential(
-            torch.nn.Linear(512, hidden_dimension),
-            torch.nn.ReLU(),
-            torch.nn.Dropout(0.3),
-            torch.nn.Linear(hidden_dimension, hidden_dimension // 2),
-            torch.nn.ReLU(),
-            torch.nn.Dropout(0.3),
-            torch.nn.Linear(hidden_dimension // 2, num_classes)
-        )
+        self.classifier = torch.nn.Linear(2048, num_classes)
 
     def forward(self, x):
         x = self.features(x)

@@ -1,5 +1,7 @@
 import os
 
+from torchvision.transforms import InterpolationMode
+
 from resnet_model_head import ModelHead
 import torch
 import torchvision
@@ -10,17 +12,23 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f'Using device: {device}.')
 
 # Transformations
-transform_rotation = torchvision.transforms.RandomApply([
-    torchvision.transforms.RandomRotation(20)
-], p=0.2)
+NEW_DIMENSION = 224
 
 transform_train = torchvision.transforms.Compose([
-    torchvision.transforms.Resize(256),
-    torchvision.transforms.CenterCrop(224),
-    torchvision.transforms.RandomPerspective(distortion_scale=0.1, p=0.2),
-    transform_rotation,
+    torchvision.transforms.Resize(256),  # resize the input
+    torchvision.transforms.RandomResizedCrop(
+        NEW_DIMENSION,
+        scale=(0.7, 1.0),
+        ratio=(0.9, 1.1),
+        interpolation=InterpolationMode.BILINEAR
+    ),  # crop a random part of the image
+    torchvision.transforms.RandomHorizontalFlip(p=0.5),
+    torchvision.transforms.ColorJitter(brightness=0.25, contrast=0.25, saturation=0.15),
+    torchvision.transforms.RandomRotation(10),  # randomly rotate the input
+    torchvision.transforms.RandomPerspective(0.08, p=0.1),  # 10% chance to change the perspective (left/right/up/below)
+    torchvision.transforms.RandomGrayscale(p=0.05),
     torchvision.transforms.ToTensor(),
-    torchvision.transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+    torchvision.transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
 ])
 
 transform_valid = torchvision.transforms.Compose([
@@ -31,9 +39,9 @@ transform_valid = torchvision.transforms.Compose([
 ])
 
 # DataLoaders
-TRAIN_DATA_DIR = 'training/train'
-VALID_DATA_DIR = 'training/validation'
-TEST_DATA_DIR = 'training/test'
+TRAIN_DATA_DIR = 'training_new/train'
+VALID_DATA_DIR = 'training_new/validation'
+TEST_DATA_DIR = 'training_new/test'
 
 BATCH_SIZE = 32
 
@@ -79,7 +87,7 @@ model = torchvision.models.resnet50(pretrained=True).to(device)
 for parameter in model.parameters():
     parameter.requires_grad = False
 
-model.fc = ModelHead(2048, 1024, 12)
+model.fc = ModelHead(2048, 1024, 5)
 model.fc.to(device)
 
 # Training
