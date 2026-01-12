@@ -5,6 +5,7 @@ import torchvision.transforms as transforms
 from PIL import Image
 
 from model import Model
+from model_handler import get_class_names
 
 
 def predict_single_image(model, image_path, class_names, device, image_size=224):
@@ -61,11 +62,11 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("using device: ", device)
 image_path = "test_siamese.jpg"
 model_path = "checkpoints/best_checkpoint.pth"
-cat_model = Model(512, 3).to(device)
+cat_model = Model(512, 5).to(device)
 
 state_dict = torch.load(model_path, weights_only=True)
 cat_model.load_state_dict(state_dict)
 cat_model.eval()
-class_names = ["egyptian_cat", "persian cat", "siamese cat"]
+class_names = get_class_names()
 
 predict_single_image(cat_model, image_path, class_names, device)
