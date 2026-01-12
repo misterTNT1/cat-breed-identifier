@@ -1,3 +1,5 @@
+import os
+
 import torch
 import torchvision
 from PIL import Image
@@ -5,7 +7,7 @@ from PIL import Image
 from model import Model
 
 # load the best model
-def load_model(device, path="checkpoints/best_checkpoint.pth", model=Model(hidden_dimension=512, num_classes=3)):
+def load_model(device, path="checkpoints/best_checkpoint.pth", model=Model(hidden_dimension=512, num_classes=5)):
     state_dict = torch.load(path, weights_only=True)
     model = model.to(device)
     model.load_state_dict(state_dict)
@@ -35,7 +37,9 @@ def predict_cat_breed(cat_model, image_path, device):
 
 
 def get_class_names():
-    return ["egyptian_cat", "persian cat", "siamese cat"]
+    path = "training_new/train"
+    return [name for name in os.listdir(path)
+           if os.path.isdir(os.path.join(path, name))]
 
 if __name__ == '__main__':
     image_path = "test_siamese.jpg"
