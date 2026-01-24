@@ -12,7 +12,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Load your model
-model = Model(512, 5).to(device)
+model = Model(5).to(device)
 
 # Load saved weights
 checkpoint_path = os.path.join("checkpoints", "best_checkpoint.pth")
@@ -45,7 +45,7 @@ test_loader = torch.utils.data.DataLoader(
     num_workers=0
 )
 
-# Get class names from dataset
+# Get class names from the dataset
 class_names = test_dataset.classes
 print("Class names:", class_names)
 
