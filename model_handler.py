@@ -7,7 +7,7 @@ from PIL import Image
 from model import Model
 
 # load the best model
-def load_model(device, path="checkpoints/best_checkpoint.pth", model=Model(hidden_dimension=512, num_classes=5)):
+def load_model(device, path="checkpoints/best_checkpoint.pth", model=Model(num_classes=5)):
     state_dict = torch.load(path, weights_only=True)
     model = model.to(device)
     model.load_state_dict(state_dict)
