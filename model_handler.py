@@ -6,8 +6,15 @@ from PIL import Image
 
 from model import Model
 
+
+def get_class_names():
+    path = "training_new/train"
+    return [name for name in os.listdir(path)
+           if os.path.isdir(os.path.join(path, name))]
+
+
 # load the best model
-def load_model(device, path="checkpoints/best_checkpoint.pth", model=Model(num_classes=5)):
+def load_model(device, path="checkpoints/best_checkpoint.pth", model=Model(num_classes=len(get_class_names()))):
     state_dict = torch.load(path, weights_only=True)
     model = model.to(device)
     model.load_state_dict(state_dict)
@@ -20,8 +27,8 @@ transform = torchvision.transforms.Compose([
     torchvision.transforms.Resize(256),
     torchvision.transforms.CenterCrop(image_size),
     torchvision.transforms.ToTensor(),
-    torchvision.transforms.Normalize(mean=(0.485, 0.456, 0.406),
-                            std=(0.229, 0.224, 0.225))
+    torchvision.transforms.Normalize(mean=(0.5, 0.5, 0.5),
+                            std=(0.5, 0.5, 0.5))
 ])
 
 def predict_cat_breed(cat_model, image_path, device):
@@ -34,12 +41,6 @@ def predict_cat_breed(cat_model, image_path, device):
         predicted_class_idx = torch.argmax(outputs, dim=1).item()
 
     return get_class_names()[predicted_class_idx]
-
-
-def get_class_names():
-    path = "training_new/train"
-    return [name for name in os.listdir(path)
-           if os.path.isdir(os.path.join(path, name))]
 
 if __name__ == '__main__':
     image_path = "test_siamese.jpg"
