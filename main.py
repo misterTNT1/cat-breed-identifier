@@ -1,107 +1,323 @@
+import os
 import random
-import tkinter as tk
+import shutil
 from tkinter import filedialog, ttk
-from tkinter import messagebox
+from tkinter.filedialog import askopenfilename
+import threading
+import queue
+
+import customtkinter as ctk
 import torch
-from PIL import Image, ImageTk, ImageFile
+from PIL import Image
 
 import model_handler
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 cat_model = model_handler.load_model(device)
-
 cat_model.eval()
+class_names = model_handler.get_class_names()
 
-root = tk.Tk()
-root.configure(bg="#f0f0f0")
-root.title("Cat Breed Classifier")
-root.geometry("650x650")
-style = ttk.Style(root)
-style.theme_use("clam")
-
-guess = tk.StringVar()
-answer = tk.StringVar(value="Your guess will appear here")
-
-# Image frame
-image_frame = tk.Frame(root, bd=2, relief="groove", bg="#f0f0f0")
-image_frame.grid(row=0, column=0, columnspan=5, pady=10)
-label = tk.Label(image_frame, bg="#f0f0f0")
-label.pack(padx=10, pady=10)
-
-# Options
-options = model_handler.get_class_names()
-radio_frame = tk.LabelFrame(root, padx=10, pady=10)
-radio_frame.grid(row=1, column=0, columnspan=5, pady=10)
-radio_frame.rowconfigure(0, weight=1)
-radio_frame.rowconfigure(1, weight=1)
-radio_frame.columnconfigure(0, weight=1)
-radio_frame.columnconfigure(1, weight=1)
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("blue")
 
 
-# Result
-result = tk.Label(root, textvariable=answer, font=("Helvetica", 14, "bold"))
-result.grid(row=2, column=0, columnspan=5, pady=10)
+class CatBreedQuizApp(ctk.CTk):
+    PATH = "training_new/test"
+    def __init__(self):
+        super().__init__()
+        self.title("Cat Breed Quiz")
+        self.geometry("800x700")
+        self.configure(fg_color="#46178f")
 
-def resize_image(image: ImageFile, new_size):
-    return image.resize(size=new_size)
+        self.selected_breed = ctk.StringVar(value="")
+        self.current_image_path = None
+        self.correct_answer = None
+        self.total_images = 0
+        self.score = 0
+        self.started = False
+        self.queue = queue.Queue()
+        self.running = False
 
-def load_image(file_path):
-    try:
-        image_content = Image.open(file_path)
-        image_content = resize_image(image_content, (400, 400))
-        global tk_image
-        tk_image = ImageTk.PhotoImage(image_content)
-        label.configure(image=tk_image)
-    except Exception as e:
-        print("error handling file ", e)
+        self.create_widgets()
 
+    def create_widgets(self):
+        self.main_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.main_frame.pack(fill="both", expand=True, padx=30, pady=20)
 
-def load_options():
-    # removing the old options
-    for widget in radio_frame.winfo_children():
-        widget.destroy()
+        self.title_label = ctk.CTkLabel(
+            self.main_frame,
+            text="Guess the Cat Breed!",
+            font=ctk.CTkFont(size=32, weight="bold"),
+            text_color="white"
+        )
+        self.title_label.pack(pady=(0, 20))
 
-    estimated = model_handler.predict_cat_breed(cat_model, current_image_path, device)
-    remaining_values = [value for value in options if value != estimated]
-    option_list = random.sample(remaining_values, 3)
-    option_list.append(estimated)
-    colors = ["#FF3030", "#5BC0EB", "#FFF78A", "#41D95D"]
-    for i, option in enumerate(zip(option_list, colors)):
-        row = i // 2
-        col = i % 2
-        tk.Radiobutton(radio_frame, text=option[0], variable=guess, value=option[0], background=option[1], width=0, height=0).grid(
-            row=row, column=col, padx=5, pady=5, sticky="nsew"
+        self.image_label = ctk.CTkLabel(
+            self.main_frame,
+            font=ctk.CTkFont(size=18),
+            text="",
+            text_color="#888888"
+        )
+        self.image_label.pack(pady=20)
+
+        self.answers_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        self.answers_frame.pack(pady=25, fill="x")
+
+        self.answers_frame.grid_columnconfigure((0, 1), weight=1)
+
+        self.answer_buttons = []
+
+        self.result_label = ctk.CTkLabel(
+            self.main_frame,
+            text="Select your answer above!",
+            font=ctk.CTkFont(size=20, weight="bold"),
+            text_color="white"
+        )
+        self.result_label.pack(pady=15)
+
+        self.upload_button = ctk.CTkButton(
+            self.main_frame,
+            text="upload your folder with cats",
+            command=self.add_images
         )
 
-    guess.set(options[0])
+        self.upload_button.pack(pady=10)
 
-default_image = "test_siamese.jpg"
-load_image(default_image)
-current_image_path = default_image
-load_options()
+        self.start_btn = ctk.CTkButton(
+            self.main_frame,
+            text="Start",
+            command=self.show_random_image
+
+        )
+        self.start_btn.pack(pady=10)
+
+        self.submit_btn = ctk.CTkButton(
+            self.main_frame,
+            text="Submit Guess",
+            command=self.submit_guess
+        )
+        self.submit_btn.pack(pady=10)
+
+        self.score_label = ctk.CTkLabel(
+            self.main_frame,
+            text=f"Score: {self.score}/{self.total_images}",
+            font=ctk.CTkFont(size=20, weight="bold"),
+            text_color="white"
+        )
+
+        self.score_label.pack(pady=(10, 20))
+
+        self.progress = ttk.Progressbar(self.main_frame, length=300, mode="determinate")
+
+    # ----------------- IMAGE -----------------
+    def show_random_image(self, path=PATH):
+        self.start_btn.pack_forget()
+        self.upload_button.pack_forget()
+        images = []
+        image_folders = os.listdir(path)
+        for folder in image_folders:
+            folder_path = os.path.join(path, folder)
+            images.extend([
+                os.path.join(folder_path, f)
+                for f in os.listdir(folder_path)
+                if f.lower().endswith((".jpg", ".jpeg", ".png"))
+            ])
+
+        if os.path.exists("user_images"):
+            user_images = [
+                os.path.join("user_images", f)
+                for f in os.listdir("user_images")
+                if f.lower().endswith((".jpg", ".jpeg", ".png"))
+            ]
+            images.extend(user_images)
+        if not images:
+            return
+        self.current_image_path = random.choice(images)
+        img = Image.open(self.current_image_path)
+        img.thumbnail((400, 400))
+
+        ctk_image = ctk.CTkImage(
+            light_image=img,
+            dark_image=img,
+            size=(img.width, img.height)
+        )
+
+        self.image_label.configure(image=ctk_image, text="")
+        self.image_label.image = ctk_image
+
+        self.generate_options()
 
 
-def upload_image():
-    file_path = filedialog.askopenfilename()
-    if not file_path.endswith(".jpg"):
-        messagebox.showerror("wrong file path", f"this file path does not contain the proper file path"
-                                                f"\nfile path: {file_path}")
-        return
-    global current_image_path
-    current_image_path = file_path
-    load_image(file_path if file_path else default_image)
-    load_options()
+    def process_images(self, folder_path, files):
+        os.makedirs("user_images", exist_ok=True)
 
-# prints the model's guess as well as your guess
-def submit():
-    estimated_breed = model_handler.predict_cat_breed(cat_model, current_image_path, device)
-    answer.set(f"You chose: {guess.get()}, model's guess: {estimated_breed}")
-# Buttons
-ttk.Button(root, text="Upload Image", command=upload_image).grid(row=3, column=2, pady=5)
-ttk.Button(root, text="Submit Guess", command=submit).grid(row=4, column=2, pady=5)
+        for i, file in enumerate(files):
+            src = os.path.join(folder_path, file)
+            dst = os.path.join("user_images", file)
 
-for i in range(5):
-    root.grid_columnconfigure(i, weight=1)
+            name, ext = os.path.splitext(file)
+            counter = 1
+            while os.path.exists(dst):
+                dst = os.path.join("user_images", f"{name}_{counter}{ext}")
+                counter += 1
 
-root.mainloop()
+            shutil.copy2(src, dst)
+
+            # send progress update
+            self.queue.put(i+1)
+
+        self.queue.put("DONE")
+
+    def check_queue(self):
+        try:
+            msg = self.queue.get_nowait()
+
+            if msg == "DONE":
+                self.progress["value"] = self.progress["maximum"]
+                self.running = False
+                self.progress.pack_forget()
+                return
+            else:
+                self.progress["value"] = msg
+
+        except queue.Empty:
+            pass
+
+        self.main_frame.after(100, self.check_queue)
+
+    def add_images(self):
+        if self.running:
+            return
+        os.makedirs("user_images", exist_ok=True)
+        folder_path = filedialog.askdirectory()
+
+        if not folder_path:
+            return
+
+        files = [
+            f for f in os.listdir(folder_path)
+            if os.path.isfile(os.path.join(folder_path, f))
+            and f.lower().endswith((".png", ".jpg", ".jpeg"))
+        ]
+        if not files:
+            return
+
+        self.progress.pack(pady=10)
+        self.progress["value"] = 0
+        self.progress["maximum"] = len(files)
+
+        self.running = True
+
+        thread = threading.Thread(
+            target=self.process_images,
+            args=(folder_path, files),
+            daemon=True
+        )
+
+        thread.start()
+
+        self.main_frame.after(100, self.check_queue)
+
+
+    def upload_image(self):
+        file_path = filedialog.askopenfilename(
+            filetypes=[("Image files", "*.jpg *.jpeg *.png")]
+        )
+
+        if not file_path:
+            return
+
+        self.current_image_path = file_path
+
+        img = Image.open(file_path)
+        img.thumbnail((400, 400))
+
+        ctk_image = ctk.CTkImage(
+            light_image=img,
+            dark_image=img,
+            size=(img.width, img.height)
+        )
+
+        self.image_label.configure(image=ctk_image, text="")
+        self.image_label.image = ctk_image
+
+        self.generate_options()
+
+    # ----------------- QUIZ LOGIC -----------------
+
+    def generate_options(self):
+        for btn in self.answer_buttons:
+            btn.destroy()
+
+        self.answer_buttons.clear()
+
+        self.correct_answer = model_handler.predict_cat_breed(
+            cat_model, self.current_image_path, device
+        )
+
+        wrong_answers = [c for c in class_names if c != self.correct_answer]
+        options = random.sample(wrong_answers, 3)
+        options.append(self.correct_answer)
+        random.shuffle(options)
+
+        for i, option in enumerate(options):
+            btn = ctk.CTkButton(
+                self.answers_frame,
+                text=option,
+                command=lambda o=option: self.select_breed(o)
+            )
+            btn.grid(row=i // 2, column=i % 2, padx=10, pady=10, sticky="ew")
+            self.answer_buttons.append(btn)
+
+        self.clear_result()
+
+
+
+    def clear_result(self):
+        self.selected_breed.set("")
+        self.result_label.configure(text="Select your answer above!", text_color="white")
+        self.image_label.configure(text="")
+
+
+    def select_breed(self, breed):
+        self.selected_breed.set(breed)
+        self.result_label.configure(
+            text=f"Selected: {breed}",
+            text_color="#ffd700"
+        )
+
+    def submit_guess(self):
+        if not self.selected_breed.get():
+            self.result_label.configure(
+                text="Please select a breed first!",
+                text_color="orange"
+            )
+            return
+
+        if self.selected_breed.get() == self.correct_answer:
+            self.result_label.configure(
+                text="Correct!",
+                text_color="#00ff88"
+            )
+
+            self.score += 1
+        else:
+            self.result_label.configure(
+                text=f"Wrong! Correct: {self.correct_answer}",
+                text_color="#ff4444"
+            )
+
+        self.total_images += 1
+
+        self.score_label.configure(
+            text=f"Score: {self.score}/{self.total_images}",
+            font=ctk.CTkFont(size=20, weight="bold"),
+            text_color="white"
+        )
+
+        self.after(750, self.show_random_image)
+
+
+if __name__ == "__main__":
+    app = CatBreedQuizApp()
+    app.mainloop()
