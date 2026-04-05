@@ -9,13 +9,14 @@ from sklearn.metrics import classification_report, accuracy_score
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
 from model import Model
+from model_handler import load_model
 
 # Device setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Load your model
-model = Model(4).to(device)
+model = load_model(device)
 
 # Load saved weights
 checkpoint_path = os.path.join("checkpoints", "best_checkpoint.pth")
@@ -70,7 +71,7 @@ with torch.no_grad():
 print(f"\nOverall accuracy: {accuracy_score(y_true, y_pred) * 100:.2f}%\n")
 print(classification_report(y_true, y_pred, target_names=class_names))
 path = "../../OneDrive\\Desktop\\confusion-matrices\\"
-file_name = f"{datetime.now().strftime('%d.%m;%H;%M;%S')}.png"
+file_name = f"{datetime.now().strftime('%d%m_%H%M%S')}.png"
 cm = confusion_matrix(y_true, y_pred)
 fig = ConfusionMatrixDisplay(cm)
 image = fig.plot()
