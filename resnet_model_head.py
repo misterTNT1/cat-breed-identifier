@@ -2,7 +2,7 @@ import torch
 
 #used for the resnet model
 class ModelHead(torch.nn.Module):
-    def __init__(self, input_dimension, hidden_dimension, num_classes):
+    def __init__(self, input_dimension, hidden_dimension, num_classes=5):
         super(ModelHead, self).__init__()
         self.fc1 = torch.nn.Linear(input_dimension, hidden_dimension)
         self.relu = torch.nn.ReLU()

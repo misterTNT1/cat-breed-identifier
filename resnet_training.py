@@ -5,7 +5,7 @@ from torchvision.transforms import InterpolationMode
 from resnet_model_head import ModelHead
 import torch
 import torchvision
-from sklearn.metrics import classification_report, f1_score
+from sklearn.metrics import classification_report, f1_score, matthews_corrcoef
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -103,7 +103,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 def train(model, n_epochs, criterion, optimizer, train_data_loader, valid_data_loader,
           device, model_save_path, logging_interval: int = 50):
-    best_valid_f1_score = 0.0
+    best_valid_mcc_score = 0.0
     os.makedirs(model_save_path, exist_ok=True)
 
     for epoch in range(n_epochs):
@@ -138,13 +138,13 @@ def train(model, n_epochs, criterion, optimizer, train_data_loader, valid_data_l
             valid_pred_labels = torch.argmax(valid_preds, dim=1)
             y_true.extend(valid_labels.detach().cpu().numpy())
             y_pred.extend(valid_pred_labels.detach().cpu().numpy())
-        valid_f1_score = f1_score(y_true, y_pred, average='macro')
+        valid_mcc_score = matthews_corrcoef(y_true, y_pred)
 
-        if valid_f1_score > best_valid_f1_score:
-            best_valid_f1_score = valid_f1_score
+        if valid_mcc_score > best_valid_mcc_score:
+            best_valid_mcc_score = valid_mcc_score
             torch.save(model.state_dict(),
                        os.path.join(model_save_path, 'best_checkpoint.pth'))
-        print(f'Epoch {epoch + 1} F1-score: {valid_f1_score}\t| Best F1-score: {best_valid_f1_score}')
+        print(f'Epoch {epoch + 1} mcc-score: {valid_mcc_score}\t| Best mcc-score: {best_valid_mcc_score}')
         torch.save(model.state_dict(),
                    os.path.join(model_save_path, f'epoch_{epoch + 1}_checkpoint.pth'))
 
