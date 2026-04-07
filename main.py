@@ -1,10 +1,9 @@
 import os
+import queue
 import random
 import shutil
-from tkinter import filedialog, ttk
-from tkinter.filedialog import askopenfilename
 import threading
-import queue
+from tkinter import filedialog, ttk, messagebox
 
 import customtkinter as ctk
 import torch
@@ -111,6 +110,7 @@ class CatBreedQuizApp(ctk.CTk):
 
     # ----------------- IMAGE -----------------
     def show_random_image(self, path=PATH):
+        self.started = True
         self.start_btn.pack_forget()
         self.upload_button.pack_forget()
         images = []
@@ -147,7 +147,6 @@ class CatBreedQuizApp(ctk.CTk):
 
         self.generate_options()
 
-
     def process_images(self, folder_path, files):
         os.makedirs("user_images", exist_ok=True)
 
@@ -164,7 +163,7 @@ class CatBreedQuizApp(ctk.CTk):
             shutil.copy2(src, dst)
 
             # send progress update
-            self.queue.put(i+1)
+            self.queue.put(i + 1)
 
         self.queue.put("DONE")
 
@@ -197,7 +196,7 @@ class CatBreedQuizApp(ctk.CTk):
         files = [
             f for f in os.listdir(folder_path)
             if os.path.isfile(os.path.join(folder_path, f))
-            and f.lower().endswith((".png", ".jpg", ".jpeg"))
+               and f.lower().endswith((".png", ".jpg", ".jpeg"))
         ]
         if not files:
             return
@@ -217,31 +216,6 @@ class CatBreedQuizApp(ctk.CTk):
         thread.start()
 
         self.main_frame.after(100, self.check_queue)
-
-
-    def upload_image(self):
-        file_path = filedialog.askopenfilename(
-            filetypes=[("Image files", "*.jpg *.jpeg *.png")]
-        )
-
-        if not file_path:
-            return
-
-        self.current_image_path = file_path
-
-        img = Image.open(file_path)
-        img.thumbnail((400, 400))
-
-        ctk_image = ctk.CTkImage(
-            light_image=img,
-            dark_image=img,
-            size=(img.width, img.height)
-        )
-
-        self.image_label.configure(image=ctk_image, text="")
-        self.image_label.image = ctk_image
-
-        self.generate_options()
 
     # ----------------- QUIZ LOGIC -----------------
 
@@ -271,13 +245,10 @@ class CatBreedQuizApp(ctk.CTk):
 
         self.clear_result()
 
-
-
     def clear_result(self):
         self.selected_breed.set("")
         self.result_label.configure(text="Select your answer above!", text_color="white")
         self.image_label.configure(text="")
-
 
     def select_breed(self, breed):
         self.selected_breed.set(breed)
@@ -287,6 +258,9 @@ class CatBreedQuizApp(ctk.CTk):
         )
 
     def submit_guess(self):
+        if not self.started:
+            messagebox.showerror("could not submit guess", "you have to start the game to submit your guess")
+            return
         if not self.selected_breed.get():
             self.result_label.configure(
                 text="Please select a breed first!",
@@ -303,7 +277,7 @@ class CatBreedQuizApp(ctk.CTk):
             self.score += 1
         else:
             self.result_label.configure(
-                text=f"Wrong! Correct: {self.correct_answer}",
+                text=f"Wrong! Correct : {self.correct_answer}",
                 text_color="#ff4444"
             )
 
